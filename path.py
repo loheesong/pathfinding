@@ -73,6 +73,10 @@ def main():
         for event in pygame.event.get():
             if pygame.mouse.get_pressed()[0]: # LEFT
                 mouse_button = "left"
+                if not start:
+                    pass
+                if not end:
+                    pass
                 grid.on_click(pygame.mouse.get_pos(), mouse_button)
             elif pygame.mouse.get_pressed()[2]: # right
                 mouse_button = "right"
