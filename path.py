@@ -9,6 +9,8 @@ pygame.display.set_caption("Pathfinding")
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREY = (128, 128, 128)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
 
 class Grid:
     """Handles all grid logic"""
@@ -16,7 +18,6 @@ class Grid:
         self.row = row
         self.col = col
         self.grid = [[Box(row, col) for col in range(self.col)] for row in range(self.row)]
-
 
     def render(self, win):
         gap = WIDTH / self.col
@@ -31,16 +32,11 @@ class Grid:
             # horizontal lines
             pygame.draw.line(win, GREY, (0, i * gap), (WIDTH, i * gap))
         
-        
-    
-    def on_click(self, mouse_pos, mouse_button):
+    def on_click(self, mouse_pos: tuple[int,int]):
         """Select start and end points. Make walls delete walls"""
         row = int(mouse_pos[1] // (HEIGHT / self.row))
         col = int(mouse_pos[0] // (WIDTH / self.col))
-        if mouse_button == "left":
-            self.grid[row][col].colour = BLACK
-        elif mouse_button == "right":
-            self.grid[row][col].colour = WHITE
+        return row,col
 
 class Box:
     def __init__(self, row, col):
@@ -68,19 +64,32 @@ def main():
     
     while run:
         clock.tick(FPS)
-        
 
         for event in pygame.event.get():
             if pygame.mouse.get_pressed()[0]: # LEFT
-                mouse_button = "left"
-                if not start:
-                    pass
-                if not end:
-                    pass
-                grid.on_click(pygame.mouse.get_pos(), mouse_button)
+                row, col = grid.on_click(pygame.mouse.get_pos())
+                spot_clicked = grid.grid[row][col]
+
+                # if no start point and spot is not ending point
+                if not start and spot_clicked != end:
+                    start = spot_clicked
+                    start.colour = RED
+                # if no end point and spot is not starting point 
+                elif not end and spot_clicked != start:
+                    end = spot_clicked
+                    end.colour = BLUE
+                # if both start and end point are placed, place walls
+                elif spot_clicked != start and spot_clicked != end:
+                    spot_clicked.colour = BLACK
+
             elif pygame.mouse.get_pressed()[2]: # right
-                mouse_button = "right"
-                grid.on_click(pygame.mouse.get_pos(), mouse_button)
+                row, col = grid.on_click(pygame.mouse.get_pos())
+                spot_clicked = grid.grid[row][col]
+                spot_clicked.colour = WHITE
+                if spot_clicked == start:
+                    start = None
+                if spot_clicked == end:
+                    end = None
 
             if event.type == pygame.QUIT:
                 run = False
