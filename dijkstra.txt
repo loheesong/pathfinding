@@ -1,0 +1,34 @@
+Dijkstra(Maze maze, Node start, Node end) {
+    priority_queue queue();
+    // Init all distances with infinity
+    for (auto&& node : maze.nodes) node.distance = Infinity;
+    // Distance to the root itself is zero
+    start.distance = 0;
+    // Init queue with the root node
+    queue.add(start, 0);
+    // Iterate over the priority queue until it is empty.
+    while (!queue.isEmpty()) {
+      curNode = queue.dequeue();  // Fetch next closest node
+      curNode.discovered = true;  // Mark as discovered
+      // Iterate over unvisited neighbors
+      for (auto&& neighbor : curNode.GetUnvisitedNeighbors())
+      {
+        // Update minimal distance to neighbor
+        // Note: distance between to adjacent node is constant
+        const minDistance = 
+          Math.min(neighbor.distance, curNode.distance + 1);
+        if (minDistance !== neighbor.distance) {
+          neighbor.distance = minDistance;  
+          neighbor.parent = curNode;        
+          // Change queue priority of the neighbor 
+          if (queue.has(neighbor))
+           queue.setPriority(neighbor, minDistance);
+        }
+        // Add neighbor to the queue for further visiting.
+        if (!queue.has(neighbor)) 
+          queue.add(neighbor, neighbor.distance);
+      }
+    }
+  // Done ! At this point we just have to walk back from the end using the parent
+  // If end does not have a parent, it means that it has not been found.
+}

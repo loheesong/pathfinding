@@ -32,12 +32,15 @@ class Grid:
             # horizontal lines
             pygame.draw.line(win, GREY, (0, i * gap), (WIDTH, i * gap))
         
-    def on_click(self, mouse_pos: tuple[int,int]):
+    def on_click(self, mouse_pos: tuple[int,int]) -> tuple:
         """Select start and end points. Make walls delete walls"""
         row = int(mouse_pos[1] // (HEIGHT / self.row))
         col = int(mouse_pos[0] // (WIDTH / self.col))
         return row,col
 
+    def algorithm(self):
+        pass
+    
 class Box:
     def __init__(self, row, col):
         self.row = row
@@ -86,6 +89,8 @@ def main():
                 row, col = grid.on_click(pygame.mouse.get_pos())
                 spot_clicked = grid.grid[row][col]
                 spot_clicked.colour = WHITE
+
+                # if delete start or end, set to None
                 if spot_clicked == start:
                     start = None
                 if spot_clicked == end:
