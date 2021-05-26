@@ -1,7 +1,6 @@
 # problem: find 1 or 2 consecutive numbers that are divisible by 3 and add those numbers up
 n = "439" #ans is 51=3+9+39
-print([int(a[0]) for a in [[int(n[i:i+j]) for i in range(len(n)) if i+j<=len(n) and int(n[i:i+j])%3==0] for j in range(1,3)]])
-
+print(sum([int(n[i:i+j]) for i in range(len(n)) for j in range(1,3) if i+j<=len(n) and int(n[i:i+j])%3==0]))
 '''
 def f(a):
     return a+1
