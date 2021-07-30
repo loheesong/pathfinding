@@ -1,14 +1,10 @@
+
+
+'''
 a = [chr(i) for i in range(97,100)]
 b = {i:ord(i)-96 for i in a}
 print(b)
 
-
-
-
-
-
-
-'''
 def f(a):
     return a+1
 

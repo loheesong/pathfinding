@@ -1,0 +1,10 @@
+implement dfs 
+implement bfs
+implement astar 
+start goal walls left click to add and right click to delete 
+
+
+implement visualisation for:
+    dfs
+    bfs
+    astar
