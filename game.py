@@ -1,6 +1,6 @@
 from __future__ import annotations
-from enum import Enum
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from heapq import heappop, heappush
+from typing import Callable, Deque, Dict, List, NamedTuple, Optional, Set, Tuple
 import pygame 
 import random
 
@@ -40,14 +40,44 @@ class Stack():
     def pop(self):
         return self._container.pop() # LIFO
 
-    def __repr__(self) -> str:
-        return repr(self._container)
+class Queue():
+    """First In First Out data structure with push and pop methods"""
+    def __init__(self) -> None:
+        self._container: Deque = Deque()
+
+    @property
+    def empty(self) -> bool:
+        return not self._container # not is true for empty container 
+
+    def push(self, item) -> None:
+        self._container.append(item)
+
+    # popping from the left is an O(1) operation whereas 
+    # it is an O(n) operation on a list (every element must be moved one to left)
+    def pop(self):
+        return self._container.popleft() # FIFO
+
+class PriorityQueue():
+    """Element with highest priority is in front. Priority is defined as lowest f(n)"""
+    def __init__(self) -> None:
+        self._container: List = []
+        
+    @property
+    def empty(self) -> bool:
+        return not self._container # not is true for empty container 
+
+    # heappush and heappop compares node using < operator, __lt__ in Node
+    def push(self, item) -> None:
+        heappush(self._container, item) # in by priority 
+
+    def pop(self):
+        return heappop(self._container) # out by priority 
 
 class Node():
     """Strictly for maze finding algorithm only"""
     # Optional type means either Node or None
-    def __init__(self, state, parent: Optional[Node], cost: float = 0.0, heuristic: float = 0.0) -> None:
-        self.state = state
+    def __init__(self, current: MazeLocation, parent: Optional[Node], cost: float = 0.0, heuristic: float = 0.0) -> None:
+        self.current: MazeLocation = current
         self.parent: Optional[Node] = parent
 
         # for astar 
@@ -55,6 +85,11 @@ class Node():
         self.heuristic: float = heuristic
 
     def __lt__(self, other: Node) -> bool:
+        """
+        f(n) = g(n) + h(n) where:
+            g(n) is total estimated cost of path to reach Node n 
+            h(n) is estimated cost from n to goal using a heuristic
+        """
         return (self.cost + self.heuristic) < (other.cost + other.heuristic)
 
 class DisplayNode:
@@ -74,12 +109,10 @@ class DisplayNode:
     def render(self, win):
         pygame.draw.rect(win, self.state, self._rect)
 
-
 class Maze:
-    """Handles all maze logic"""
+    """Handles all maze logic, including pathfinding algorithm"""
 
-    def __init__(self, rows: int = 10, columns: int = 10, sparseness: float = 0.2, 
-        start: MazeLocation = MazeLocation(0,0), goal: MazeLocation = MazeLocation(9,9)) -> None:
+    def __init__(self, start: MazeLocation, goal: MazeLocation, rows: int = 10, columns: int = 10, sparseness: float = 0.2) -> None:
         
         # initialize basic instance variables
         self._rows: int = rows
@@ -102,6 +135,12 @@ class Maze:
             for column in range(columns):
                 if random.uniform(0, 1.0) < sparseness:
                     self._grid[row][column].state = BLOCKED
+
+    def on_click(self, mouse_pos: Tuple[int, int]) -> MazeLocation:
+        """Select start and end points. Make walls delete walls"""
+        row = int(mouse_pos[1] // (HEIGHT / self._rows))
+        column = int(mouse_pos[0] // (WIDTH / self._columns))
+        return MazeLocation(row, column)
 
     def goal_test(self, ml: MazeLocation) -> bool:
         """Check whether current maze location is the goal"""
@@ -129,16 +168,118 @@ class Maze:
 
         return locations
 
-    def dfs(self):
-        pass
+    def dfs(self, initial: MazeLocation, goal_test: Callable[[MazeLocation], bool],
+        successors: Callable[[MazeLocation], List[MazeLocation]]) -> Optional[Node]:
+        """Finds a path using Depth First Search and returns goal if path exists else None"""
 
-    def manhattan_distance(goal: MazeLocation) -> Callable[[MazeLocation], float]:
+        # frontier is where we've yet to go 
+        frontier: Stack[Node] = Stack()
+        frontier.push(Node(initial, None))
+
+        # explored is where we've been 
+        explored: Set[MazeLocation] = {initial}
+
+        # keep going while there is more to explore 
+        while not frontier.empty:
+            current_node: Node = frontier.pop()
+            current_location: MazeLocation = current_node.current
+            # if we found the goal, we're done 
+            if goal_test(current_location):
+                return current_node
+
+            # check where we can go next and haven't explored 
+            for child in successors(current_location):
+                if child in explored: # skip children we already explored 
+                    continue
+                # if not explored, visit them and add to explored
+                explored.add(child)
+                frontier.push(Node(child, current_node))
+
+        return None # went through everything and never found goal 
+    
+    def bfs(self, initial: MazeLocation, goal_test: Callable[[MazeLocation], bool], 
+        successors: Callable[[MazeLocation], List[MazeLocation]]) -> Optional[Node]:
+        """Finds a path using Breadth First Search and returns goal if path exists else None"""
+
+        # frontier is where we've yet to go 
+        frontier: Queue[Node] = Queue()
+        frontier.push(Node(initial, None))
+
+        # explored is where we've been 
+        explored: Set[MazeLocation] = {initial}
+
+        # keep going while there is more to explore 
+        while not frontier.empty:
+            current_node: Node = frontier.pop()
+            current_location: MazeLocation = current_node.current
+            # if we found the goal, we're done 
+            if goal_test(current_location):
+                return current_node
+
+            # check where we can go next and haven't explored 
+            for child in successors(current_location):
+                if child in explored: # skip children we already explored 
+                    continue
+                explored.add(child)
+                frontier.push(Node(child, current_node))
+
+        return None # went through everything and never found goal 
+
+    def astar(self, initial: MazeLocation, goal_test: Callable[[MazeLocation], bool], 
+        successors: Callable[[MazeLocation], List[MazeLocation]],
+        heuristic: Callable[[MazeLocation], float]) -> Optional[Node]:
+        """Finds a path using A star and returns goal if path exists else None"""
+
+        # frontier is where we've yet to go 
+        frontier: PriorityQueue[Node] = PriorityQueue()
+        frontier.push(Node(initial, None, 0.0, heuristic(initial)))
+
+        # explored is where we've been 
+        explored: Dict[MazeLocation, float] = {initial: 0.0}
+
+        # keep going while there is more to explore 
+        while not frontier.empty:
+            current_node: Node = frontier.pop()
+            current_location: MazeLocation = current_node.current
+            # if we found the goal, we're done 
+            if goal_test(current_location):
+                return current_node
+            # check where we can go next and haven't explored 
+            for child in successors(current_location):
+                # 1 assumes a grid, need a cost function for more sophisticated apps 
+                new_cost: float = current_node.cost + 1 
+
+                if child not in explored or explored[child] > new_cost:
+                    explored[child] = new_cost
+                    frontier.push(Node(child, current_node, new_cost, heuristic(child)))
+
+        return None # went through everything and never found goal
+
+    def node_to_path(self, node: Node) -> List[MazeLocation]:
+        """Returns the path taken by working backwards from end to front"""
+        path: List[MazeLocation] = [node.current]
+
+        # initial node parent is None
+        while node.parent is not None:
+            node = node.parent
+            path.append(node.current)
+        path.reverse()
+        return path
+
+    def manhattan_distance(self, goal: MazeLocation) -> Callable[[MazeLocation], float]:
         """Returns a function that remembers the goal coordinates"""
         def distance(ml: MazeLocation) -> float:
             xdist: int = abs(ml.column - goal.column)
             ydist: int = abs(ml.row - goal.row)
             return (xdist + ydist)
         return distance
+
+    def show_path(self, path: List[MazeLocation]) -> None:
+            """Display path found by algorithm"""
+            for maze_location in path:
+                self._grid[maze_location.row][maze_location.column].state = PATH
+            self._grid[self.start.row][self.start.column].state = START
+            self._grid[self.goal.row][self.goal.column].state = GOAL
 
     def render(self, win):
         """Render all lines and nodes"""
@@ -154,17 +295,15 @@ class Maze:
             # horizontal lines
             pygame.draw.line(win, GREY, (0, i * gap), (WIDTH, i * gap))
 
-    
 def main():
     """Main game logic"""
     clock = pygame.time.Clock()
-    maze: Maze = Maze()
+    maze: Maze = Maze(start=MazeLocation(0,0), goal=MazeLocation(9,9))
 
     run: bool = True 
     game_state: str = "run"
-    start = None
-    end = None
-    
+    chosen_algo: str = "DFS" # accepted values: DFS, BFS, A star
+
     while run:
         clock.tick(FPS)
 
@@ -175,20 +314,36 @@ def main():
 
             # handle placing of start, goal and walls 
             if pygame.mouse.get_pressed()[0]: # LEFT
-                pass
+                spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
+
+                # implement start, goal logic 
+
+            # deletes start, goal and walls
             elif pygame.mouse.get_pressed()[2]: # RIGHT
                 pass
             
             # handles activating the pathfinding algorithm
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    maze.dfs()
+                    
+                    # find solution 
+                    if chosen_algo == "DFS":
+                        solution: Optional[Node] = maze.dfs(maze.start, maze.goal_test, maze.neighbours)
+                    elif chosen_algo == "BFS":
+                        solution: Optional[Node] = maze.bfs(maze.start, maze.goal_test, maze.neighbours)
+                    elif chosen_algo == "A star":
+                        distance: Callable[[MazeLocation], float] = maze.manhattan_distance(maze.goal)
+                        solution: Optional[Node] = maze.astar(maze.start, maze.goal_test, maze.neighbours, distance)
+                    
+                    # display solution 
+                    if solution is None:
+                        print(f"No {chosen_algo} solution")
+                    else:
+                        path: List[MazeLocation] = maze.node_to_path(solution)
+                        maze.show_path(path)
 
         maze.render(WIN)
         pygame.display.update()
-
-
-
 
 if __name__ == "__main__":
     main()
