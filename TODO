@@ -1,6 +1,4 @@
-
-start goal walls left click to add and right click to delete 
-
+double check dfs and a star with empty board 
 
 implement visualisation for:
     dfs

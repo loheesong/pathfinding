@@ -19,7 +19,8 @@ BLOCKED = (0, 0, 0) # black
 START = (255, 0, 0) # red 
 GOAL = (0, 0, 255) # blue 
 PATH = (0, 255, 0) # green
-GREY = (128, 128, 128)
+
+GREY = (128, 128, 128) # for drawing the grid lines 
 
 class MazeLocation(NamedTuple):
     row: int
@@ -52,8 +53,7 @@ class Queue():
     def push(self, item) -> None:
         self._container.append(item)
 
-    # popping from the left is an O(1) operation whereas 
-    # it is an O(n) operation on a list (every element must be moved one to left)
+    # popping from the left is an O(1) operation whereas it is an O(n) operation on a list (every element must be moved one to left)
     def pop(self):
         return self._container.popleft() # FIFO
 
@@ -112,21 +112,26 @@ class DisplayNode:
 class Maze:
     """Handles all maze logic, including pathfinding algorithm"""
 
-    def __init__(self, start: MazeLocation, goal: MazeLocation, rows: int = 10, columns: int = 10, sparseness: float = 0.2) -> None:
+    def __init__(self, start: Optional[MazeLocation] = None, goal: Optional[MazeLocation] = None, 
+        rows: int = 10, columns: int = 10, sparseness: float = 0.2) -> None:
         
         # initialize basic instance variables
         self._rows: int = rows
         self._columns: int = columns
         self.sparseness: float = sparseness
-        self.start: MazeLocation = start
-        self.goal: MazeLocation = goal 
+        self.start: Optional[MazeLocation] = start
+        self.goal: Optional[MazeLocation] = goal 
         
         self._grid = [[DisplayNode(row, column) for column in range(self._columns)] for row in range(self._rows)]
+        
+        # populate the grid with blocked cells
         self._randomly_filled(self._rows, self._columns, self.sparseness)
 
-        # populate the grid with blocked cells
-        self._grid[start.row][start.column].state = START
-        self._grid[goal.row][goal.column].state = GOAL
+        # fill start and goal
+        if self.start:
+            self._grid[start.row][start.column].state = START
+        if self.goal:
+            self._grid[goal.row][goal.column].state = GOAL
 
     def _randomly_filled(self, rows: int, columns: int, sparseness: float):
         """Randomly fill the maze with walls"""
@@ -141,6 +146,13 @@ class Maze:
         row = int(mouse_pos[1] // (HEIGHT / self._rows))
         column = int(mouse_pos[0] // (WIDTH / self._columns))
         return MazeLocation(row, column)
+
+    def update_grid(self, ml: MazeLocation, ml_state: Tuple[int, int, int] = EMPTY) -> None:
+        """Updates grid when user input or deletes start, goal or wall"""
+        # check to make sure ml is valid 
+        if 0 <= ml.row <= self._rows and 0 <= ml.column <= self._columns:
+            if ml_state in (EMPTY, BLOCKED, START, GOAL, PATH):
+                self._grid[ml.row][ml.column].state = ml_state
 
     def goal_test(self, ml: MazeLocation) -> bool:
         """Check whether current maze location is the goal"""
@@ -275,11 +287,11 @@ class Maze:
         return distance
 
     def show_path(self, path: List[MazeLocation]) -> None:
-            """Display path found by algorithm"""
-            for maze_location in path:
-                self._grid[maze_location.row][maze_location.column].state = PATH
-            self._grid[self.start.row][self.start.column].state = START
-            self._grid[self.goal.row][self.goal.column].state = GOAL
+        """Display path found by algorithm"""
+        for maze_location in path:
+            self._grid[maze_location.row][maze_location.column].state = PATH
+        self._grid[self.start.row][self.start.column].state = START
+        self._grid[self.goal.row][self.goal.column].state = GOAL
 
     def render(self, win):
         """Render all lines and nodes"""
@@ -298,11 +310,11 @@ class Maze:
 def main():
     """Main game logic"""
     clock = pygame.time.Clock()
-    maze: Maze = Maze(start=MazeLocation(0,0), goal=MazeLocation(9,9))
+    maze: Maze = Maze()
 
     run: bool = True 
     game_state: str = "run"
-    chosen_algo: str = "DFS" # accepted values: DFS, BFS, A star
+    chosen_algo: str = "A star" # accepted values: DFS, BFS, A star
 
     while run:
         clock.tick(FPS)
@@ -316,31 +328,51 @@ def main():
             if pygame.mouse.get_pressed()[0]: # LEFT
                 spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
 
-                # implement start, goal logic 
+                # if no start point and spot is not ending point
+                if not maze.start and spot_clicked != maze.goal:
+                    maze.start = spot_clicked
+                    maze.update_grid(maze.start, START)
+                # if no end point and spot is not starting point 
+                elif not maze.goal and spot_clicked != maze.start:
+                    maze.goal = spot_clicked
+                    maze.update_grid(maze.goal, GOAL)
+                # if both start and end point are placed, place walls
+                elif spot_clicked != maze.start and spot_clicked != maze.goal:
+                    maze.update_grid(spot_clicked, BLOCKED)
 
             # deletes start, goal and walls
             elif pygame.mouse.get_pressed()[2]: # RIGHT
-                pass
+                spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
+                # set spot clicked to empty 
+                maze.update_grid(spot_clicked)
+
+                # if delete start or end, set to None
+                if spot_clicked == maze.start:
+                    maze.start = None
+                if spot_clicked == maze.goal:
+                    maze.goal = None
             
             # handles activating the pathfinding algorithm
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     
-                    # find solution 
-                    if chosen_algo == "DFS":
-                        solution: Optional[Node] = maze.dfs(maze.start, maze.goal_test, maze.neighbours)
-                    elif chosen_algo == "BFS":
-                        solution: Optional[Node] = maze.bfs(maze.start, maze.goal_test, maze.neighbours)
-                    elif chosen_algo == "A star":
-                        distance: Callable[[MazeLocation], float] = maze.manhattan_distance(maze.goal)
-                        solution: Optional[Node] = maze.astar(maze.start, maze.goal_test, maze.neighbours, distance)
-                    
-                    # display solution 
-                    if solution is None:
-                        print(f"No {chosen_algo} solution")
-                    else:
-                        path: List[MazeLocation] = maze.node_to_path(solution)
-                        maze.show_path(path)
+                    # only attempt finding a solution if both start and goal exists
+                    if maze.start and maze.goal:
+                        # find solution 
+                        if chosen_algo == "DFS":
+                            solution: Optional[Node] = maze.dfs(maze.start, maze.goal_test, maze.neighbours)
+                        elif chosen_algo == "BFS":
+                            solution: Optional[Node] = maze.bfs(maze.start, maze.goal_test, maze.neighbours)
+                        elif chosen_algo == "A star":
+                            distance: Callable[[MazeLocation], float] = maze.manhattan_distance(maze.goal)
+                            solution: Optional[Node] = maze.astar(maze.start, maze.goal_test, maze.neighbours, distance)
+                        
+                        # display solution 
+                        if solution is None:
+                            print(f"No {chosen_algo} solution")
+                        else:
+                            path: List[MazeLocation] = maze.node_to_path(solution)
+                            maze.show_path(path)
 
         maze.render(WIN)
         pygame.display.update()
