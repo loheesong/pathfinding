@@ -18,7 +18,9 @@ EMPTY = (255, 255, 255) # white
 BLOCKED = (0, 0, 0) # black
 START = (255, 0, 0) # red 
 GOAL = (0, 0, 255) # blue 
-PATH = (0, 255, 0) # green
+PATH = (186,85,211) # purple
+FRONTIER = (255,127,80) # orange 
+EXPLORED = (255,215,0) # yellow
 
 GREY = (128, 128, 128) # for drawing the grid lines 
 
@@ -148,10 +150,13 @@ class Maze:
         return MazeLocation(row, column)
 
     def update_grid(self, ml: MazeLocation, ml_state: Tuple[int, int, int] = EMPTY) -> None:
-        """Updates grid when user input or deletes start, goal or wall"""
+        """
+        Updates grid when user input or deletes start, goal or wall
+        Also updates DisplayNode states during pathfinding algorithm
+        """
         # check to make sure ml is valid 
         if 0 <= ml.row <= self._rows and 0 <= ml.column <= self._columns:
-            if ml_state in (EMPTY, BLOCKED, START, GOAL, PATH):
+            if ml_state in (EMPTY, BLOCKED, START, GOAL, PATH, FRONTIER, EXPLORED):
                 self._grid[ml.row][ml.column].state = ml_state
 
     def goal_test(self, ml: MazeLocation) -> bool:
@@ -206,7 +211,12 @@ class Maze:
                 # if not explored, visit them and add to explored
                 explored.add(child)
                 frontier.push(Node(child, current_node))
+                self.update_grid(child, FRONTIER)
 
+            # needs to update every cycle WIP
+            if current_location != self.start:
+                self.update_grid(current_location, EXPLORED)
+                
         return None # went through everything and never found goal 
     
     def bfs(self, initial: MazeLocation, goal_test: Callable[[MazeLocation], bool], 
@@ -314,7 +324,7 @@ def main():
 
     run: bool = True 
     game_state: str = "run"
-    chosen_algo: str = "A star" # accepted values: DFS, BFS, A star
+    chosen_algo: str = "DFS" # accepted values: DFS, BFS, A star
 
     while run:
         clock.tick(FPS)
