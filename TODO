@@ -1,6 +1,13 @@
-implement visualisation for:
-    dfs
-    bfs
-    astar
+overall game design 
 
-reset ability 
+game states 
+set 
+choose type of algo 
+pre filled or empty 
+instructions 
+
+run
+backspace to go back to set 
+enter to reset 
+space to run 
+ 

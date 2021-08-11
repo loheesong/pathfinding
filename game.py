@@ -4,11 +4,13 @@ from typing import Callable, Deque, Dict, List, NamedTuple, Optional, Set, Tuple
 import pygame 
 import random
 
+from pygame.constants import BUTTON_LEFT
+
 # snake_case: functions and variables 
 # PascalCase: classes
 
 WIDTH, HEIGHT = 750, 750
-ROW, COLUMN = 10, 10 
+ROW, COLUMN = 50, 50 
 FPS = 60
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Pathfinding")
@@ -25,6 +27,7 @@ EXPLORED = (255,215,0) # yellow
 GREY = (128, 128, 128) # for drawing the grid lines 
 
 class MazeLocation(NamedTuple):
+    """Used to refer to locations in maze, for better organization"""
     row: int
     column: int
 
@@ -115,7 +118,7 @@ class Maze:
     """Handles all maze logic, including pathfinding algorithm"""
 
     def __init__(self, start: Optional[MazeLocation] = None, goal: Optional[MazeLocation] = None, 
-        rows: int = 10, columns: int = 10, sparseness: float = 0.2) -> None:
+        rows: int = ROW, columns: int = COLUMN, sparseness: float = 0.2) -> None:
         
         # initialize basic instance variables
         self._rows: int = rows
@@ -127,7 +130,7 @@ class Maze:
         self._grid = [[DisplayNode(row, column) for column in range(self._columns)] for row in range(self._rows)]
         
         # populate the grid with blocked cells
-        self._randomly_filled(self._rows, self._columns, self.sparseness)
+        #self._randomly_filled(self._rows, self._columns, self.sparseness)
 
         # fill start and goal
         if self.start:
@@ -198,8 +201,14 @@ class Maze:
 
         # keep going while there is more to explore 
         while not frontier.empty:
+            # make sure can quit the program while algo is running
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+
             current_node: Node = frontier.pop()
             current_location: MazeLocation = current_node.current
+
             # if we found the goal, we're done 
             if goal_test(current_location):
                 return current_node
@@ -213,8 +222,11 @@ class Maze:
                 frontier.push(Node(child, current_node))
                 self.update_grid(child, FRONTIER)
 
-            # needs to update every cycle WIP
-            if current_location != self.start:
+            self.render(WIN)
+            pygame.display.update()
+
+            # updates where algo has checked before 
+            if current_location != self.goal:
                 self.update_grid(current_location, EXPLORED)
                 
         return None # went through everything and never found goal 
@@ -232,8 +244,14 @@ class Maze:
 
         # keep going while there is more to explore 
         while not frontier.empty:
+            # make sure can quit the program while algo is running
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+
             current_node: Node = frontier.pop()
             current_location: MazeLocation = current_node.current
+
             # if we found the goal, we're done 
             if goal_test(current_location):
                 return current_node
@@ -244,7 +262,14 @@ class Maze:
                     continue
                 explored.add(child)
                 frontier.push(Node(child, current_node))
+                self.update_grid(child, FRONTIER)
 
+            self.render(WIN)
+            pygame.display.update()
+
+            # updates where algo has checked before 
+            if current_location != self.goal:
+                self.update_grid(current_location, EXPLORED)
         return None # went through everything and never found goal 
 
     def astar(self, initial: MazeLocation, goal_test: Callable[[MazeLocation], bool], 
@@ -261,11 +286,18 @@ class Maze:
 
         # keep going while there is more to explore 
         while not frontier.empty:
+            # make sure can quit the program while algo is running
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+
             current_node: Node = frontier.pop()
             current_location: MazeLocation = current_node.current
+
             # if we found the goal, we're done 
             if goal_test(current_location):
                 return current_node
+
             # check where we can go next and haven't explored 
             for child in successors(current_location):
                 # 1 assumes a grid, need a cost function for more sophisticated apps 
@@ -274,6 +306,14 @@ class Maze:
                 if child not in explored or explored[child] > new_cost:
                     explored[child] = new_cost
                     frontier.push(Node(child, current_node, new_cost, heuristic(child)))
+                    self.update_grid(child, FRONTIER)
+
+            self.render(WIN)
+            pygame.display.update()
+
+            # updates where algo has checked before 
+            if current_location != self.goal:
+                self.update_grid(current_location, EXPLORED)
 
         return None # went through everything and never found goal
 
@@ -303,7 +343,18 @@ class Maze:
         self._grid[self.start.row][self.start.column].state = START
         self._grid[self.goal.row][self.goal.column].state = GOAL
 
-    def render(self, win):
+    def reset(self) -> None:
+        """
+        Clears path, frontier, explored renders. Walls, start, goal remains. Recolour start  
+        """
+        for row in self._grid:
+            for d_node in row:
+                if d_node.state in (PATH, FRONTIER, EXPLORED):
+                    d_node.state = EMPTY
+
+        self._grid[self.start.row][self .start.column].state = START
+
+    def render(self, win) -> None:
         """Render all lines and nodes"""
         gap: float = WIDTH / self._columns
 
@@ -317,74 +368,132 @@ class Maze:
             # horizontal lines
             pygame.draw.line(win, GREY, (0, i * gap), (WIDTH, i * gap))
 
+class Button:
+    def __init__(self, name: str, x: int, y: int, width: int = 100, height: int = 50) -> None:
+        self.name: str = name
+        self._x: int = x
+        self._y: int = y 
+        self._width: int = width 
+        self._height: int = height 
+        self._rect: pygame.Rect = pygame.Rect(self._x, self._y, self._width, self._height)
+
+    def is_clicked(self, mouse_pos: Tuple[int, int]) -> bool:
+        """Detects if button is clicked"""
+        pass 
+
+    def render(self, win) -> None:
+        """Renders rectangular button with text in the middle"""
+        pygame.draw.rect(win, (0, 255, 255), self._rect)  
+
+def setting_render(win, title: Button, buttons: List[Button], instructions: List[Button]):
+    """Renders all buttons and texts in game_state setting"""
+    # set background colour to white 
+    win.fill((255,255,255)) 
+
+    # renders title 
+    title.render(win)
+
+    # renders all buttons
+    for button in buttons:
+        button.render(win)
+
+    # renders instructions  
+    for text in instructions:
+        text.render(win)
 def main():
     """Main game logic"""
-    clock = pygame.time.Clock()
     maze: Maze = Maze()
 
     run: bool = True 
-    game_state: str = "run"
-    chosen_algo: str = "DFS" # accepted values: DFS, BFS, A star
+    game_state: str = "setting" # accepted values: setting, run 
+    chosen_algo: str = "BFS" # accepted values: DFS, BFS, A*
+
+    title = Button("Pathfinding", 100, 0)
+    buttons: List[Button] = [Button("DFS", 100, 100), Button("BFS", 100, 200), Button("A*", 100, 300), \
+        Button("Random", 100, 400), Button("Empty", 100, 500)]
+    instructions: List[Button] = [Button("Space to run", 300, 0), Button("Backspace to go back", 300, 100), \
+        Button("Enter to reset", 300, 200)]
 
     while run:
-        clock.tick(FPS)
+        # set type of algo and maze generation 
+        if game_state == "setting":
+            for event in pygame.event.get():
+                # press x in top right to quit 
+                if event.type == pygame.QUIT:
+                    run = False
 
-        for event in pygame.event.get():
-            # press x in top right to quit 
-            if event.type == pygame.QUIT:
-                run = False
+                if pygame.mouse.get_pressed()[0]: #LEFT 
+                    pass 
 
-            # handle placing of start, goal and walls 
-            if pygame.mouse.get_pressed()[0]: # LEFT
-                spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
+            setting_render(WIN, title, buttons, instructions)
+        
+        # select start, goal and wall placement edits, then runs the chosen algo 
+        elif game_state == "run":
+            for event in pygame.event.get():
+                # press x in top right to quit 
+                if event.type == pygame.QUIT:
+                    run = False
 
-                # if no start point and spot is not ending point
-                if not maze.start and spot_clicked != maze.goal:
-                    maze.start = spot_clicked
-                    maze.update_grid(maze.start, START)
-                # if no end point and spot is not starting point 
-                elif not maze.goal and spot_clicked != maze.start:
-                    maze.goal = spot_clicked
-                    maze.update_grid(maze.goal, GOAL)
-                # if both start and end point are placed, place walls
-                elif spot_clicked != maze.start and spot_clicked != maze.goal:
-                    maze.update_grid(spot_clicked, BLOCKED)
+                # handle placing of start, goal and walls 
+                if pygame.mouse.get_pressed()[0]: # LEFT
+                    spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
 
-            # deletes start, goal and walls
-            elif pygame.mouse.get_pressed()[2]: # RIGHT
-                spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
-                # set spot clicked to empty 
-                maze.update_grid(spot_clicked)
+                    # if no start point and spot is not ending point
+                    if not maze.start and spot_clicked != maze.goal:
+                        maze.start = spot_clicked
+                        maze.update_grid(maze.start, START)
+                    # if no end point and spot is not starting point 
+                    elif not maze.goal and spot_clicked != maze.start:
+                        maze.goal = spot_clicked
+                        maze.update_grid(maze.goal, GOAL)
+                    # if both start and end point are placed, place walls
+                    elif spot_clicked != maze.start and spot_clicked != maze.goal:
+                        maze.update_grid(spot_clicked, BLOCKED)
 
-                # if delete start or end, set to None
-                if spot_clicked == maze.start:
-                    maze.start = None
-                if spot_clicked == maze.goal:
-                    maze.goal = None
-            
-            # handles activating the pathfinding algorithm
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    
-                    # only attempt finding a solution if both start and goal exists
-                    if maze.start and maze.goal:
-                        # find solution 
-                        if chosen_algo == "DFS":
-                            solution: Optional[Node] = maze.dfs(maze.start, maze.goal_test, maze.neighbours)
-                        elif chosen_algo == "BFS":
-                            solution: Optional[Node] = maze.bfs(maze.start, maze.goal_test, maze.neighbours)
-                        elif chosen_algo == "A star":
-                            distance: Callable[[MazeLocation], float] = maze.manhattan_distance(maze.goal)
-                            solution: Optional[Node] = maze.astar(maze.start, maze.goal_test, maze.neighbours, distance)
+                # deletes start, goal and walls
+                elif pygame.mouse.get_pressed()[2]: # RIGHT
+                    spot_clicked: MazeLocation = maze.on_click(pygame.mouse.get_pos())
+                    # set spot clicked to empty 
+                    maze.update_grid(spot_clicked)
+
+                    # if delete start or end, set to None
+                    if spot_clicked == maze.start:
+                        maze.start = None
+                    if spot_clicked == maze.goal:
+                        maze.goal = None
+                
+                # handles activating the pathfinding algorithm
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
                         
-                        # display solution 
-                        if solution is None:
-                            print(f"No {chosen_algo} solution")
-                        else:
-                            path: List[MazeLocation] = maze.node_to_path(solution)
-                            maze.show_path(path)
+                        # only attempt finding a solution if both start and goal exists
+                        if maze.start and maze.goal:
+                            # find solution 
+                            if chosen_algo == "DFS":
+                                solution: Optional[Node] = maze.dfs(maze.start, maze.goal_test, maze.neighbours)
+                            elif chosen_algo == "BFS":
+                                solution: Optional[Node] = maze.bfs(maze.start, maze.goal_test, maze.neighbours)
+                            elif chosen_algo == "A*":
+                                distance: Callable[[MazeLocation], float] = maze.manhattan_distance(maze.goal)
+                                solution: Optional[Node] = maze.astar(maze.start, maze.goal_test, maze.neighbours, distance)
+                            
+                            # display solution 
+                            if solution is None:
+                                print(f"No {chosen_algo} solution")
+                            else:
+                                path: List[MazeLocation] = maze.node_to_path(solution)
+                                maze.show_path(path)
+                    
+                    # reset renders for another animation 
+                    if event.key == pygame.K_RETURN:
+                        maze.reset()
 
-        maze.render(WIN)
+                    # goes back to game_state set 
+                    if event.key == pygame.K_BACKSPACE:
+                        pass
+
+            maze.render(WIN)
+            
         pygame.display.update()
 
 if __name__ == "__main__":
