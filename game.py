@@ -4,27 +4,34 @@ from typing import Callable, Deque, Dict, List, NamedTuple, Optional, Set, Tuple
 import pygame 
 import random
 
-from pygame.constants import BUTTON_LEFT
-
 # snake_case: functions and variables 
 # PascalCase: classes
 
+# constants in call caps 
 WIDTH, HEIGHT = 750, 750
 ROW, COLUMN = 50, 50 
 FPS = 60
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+WIN: pygame.Surface = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Pathfinding")
+
+pygame.font.init()
+smallFont = pygame.font.SysFont("tahoma", 24)
+bigFont = pygame.font.SysFont("tahoma", 56)
 
 # DisplayNode states 
 EMPTY = (255, 255, 255) # white
 BLOCKED = (0, 0, 0) # black
 START = (255, 0, 0) # red 
 GOAL = (0, 0, 255) # blue 
-PATH = (186,85,211) # purple
-FRONTIER = (255,127,80) # orange 
-EXPLORED = (255,215,0) # yellow
+PATH = (186, 85, 211) # purple
+FRONTIER = (255, 127, 80) # orange 
+EXPLORED = (255, 215, 0) # yellow
 
+# colours
 GREY = (128, 128, 128) # for drawing the grid lines 
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+BLUE = (126, 249, 255)
 
 class MazeLocation(NamedTuple):
     """Used to refer to locations in maze, for better organization"""
@@ -116,7 +123,6 @@ class DisplayNode:
 
 class Maze:
     """Handles all maze logic, including pathfinding algorithm"""
-
     def __init__(self, start: Optional[MazeLocation] = None, goal: Optional[MazeLocation] = None, 
         rows: int = ROW, columns: int = COLUMN, sparseness: float = 0.2) -> None:
         
@@ -129,22 +135,24 @@ class Maze:
         
         self._grid = [[DisplayNode(row, column) for column in range(self._columns)] for row in range(self._rows)]
         
-        # populate the grid with blocked cells
-        #self._randomly_filled(self._rows, self._columns, self.sparseness)
-
         # fill start and goal
         if self.start:
             self._grid[start.row][start.column].state = START
         if self.goal:
             self._grid[goal.row][goal.column].state = GOAL
 
-    def _randomly_filled(self, rows: int, columns: int, sparseness: float):
+    def _randomly_filled(self, rows: int, columns: int, sparseness: float) -> None:
         """Randomly fill the maze with walls"""
         # can be improved 
         for row in range(rows):
             for column in range(columns):
                 if random.uniform(0, 1.0) < sparseness:
                     self._grid[row][column].state = BLOCKED
+
+    def maze_gen(self, gen_style: str) -> None:
+        """Generate maze based on user chosen style"""
+        if gen_style == "Random":
+            self._randomly_filled(self._rows, self._columns, self.sparseness) 
 
     def on_click(self, mouse_pos: Tuple[int, int]) -> MazeLocation:
         """Select start and end points. Make walls delete walls"""
@@ -369,21 +377,36 @@ class Maze:
             pygame.draw.line(win, GREY, (0, i * gap), (WIDTH, i * gap))
 
 class Button:
-    def __init__(self, name: str, x: int, y: int, width: int = 100, height: int = 50) -> None:
+    """Implements clickable button with centered text. x and y refer to button center"""
+    def __init__(self, name: str, x: int, y: int, width: int = 50, height: int = 50, \
+            colour: Tuple[int, int, int] = WHITE, small_font: bool = True) -> None:
         self.name: str = name
         self._x: int = x
         self._y: int = y 
         self._width: int = width 
         self._height: int = height 
-        self._rect: pygame.Rect = pygame.Rect(self._x, self._y, self._width, self._height)
+        self._rect: pygame.Rect = pygame.Rect(self._x - self._width / 2, self._y - self._height / 2, self._width, self._height)
+        self._button_colour: Tuple[int, int, int] = colour
+
+        self._text_colour: Tuple[int, int, int] = BLACK
+        # create a surface to render text
+        self._text_render: pygame.Surface = smallFont.render(self.name, True, self._text_colour) if small_font else \
+            bigFont.render(name, True, self._text_colour)
+        # create a rectangle that centers the text in the button 
+        self._text_rect: pygame.Rect = self._text_render.get_rect(center = (self._x, self._y))
 
     def is_clicked(self, mouse_pos: Tuple[int, int]) -> bool:
         """Detects if button is clicked"""
-        pass 
+        mouse_x, mouse_y = mouse_pos 
+        if self._x - self._width / 2 <= mouse_x <= self._x + self._width / 2 and \
+            self._y - self._height / 2 <= mouse_y <= self._y + self._height / 2:
+            return True
+        return False
 
     def render(self, win) -> None:
         """Renders rectangular button with text in the middle"""
-        pygame.draw.rect(win, (0, 255, 255), self._rect)  
+        pygame.draw.rect(win, self._button_colour, self._rect) 
+        win.blit(self._text_render, self._text_rect)
 
 def setting_render(win, title: Button, buttons: List[Button], instructions: List[Button]):
     """Renders all buttons and texts in game_state setting"""
@@ -392,28 +415,38 @@ def setting_render(win, title: Button, buttons: List[Button], instructions: List
 
     # renders title 
     title.render(win)
-
+    
     # renders all buttons
     for button in buttons:
         button.render(win)
-
+    
     # renders instructions  
     for text in instructions:
         text.render(win)
+    
 def main():
     """Main game logic"""
     maze: Maze = Maze()
 
     run: bool = True 
     game_state: str = "setting" # accepted values: setting, run 
-    chosen_algo: str = "BFS" # accepted values: DFS, BFS, A*
+    chosen_algo: str = "A*" # accepted values: DFS, BFS, A*
 
-    title = Button("Pathfinding", 100, 0)
-    buttons: List[Button] = [Button("DFS", 100, 100), Button("BFS", 100, 200), Button("A*", 100, 300), \
-        Button("Random", 100, 400), Button("Empty", 100, 500)]
-    instructions: List[Button] = [Button("Space to run", 300, 0), Button("Backspace to go back", 300, 100), \
-        Button("Enter to reset", 300, 200)]
-
+    title = Button("Pathfinding", WIDTH / 2, 50, small_font=False)
+    
+    buttons: List[Button] = [Button("DFS", WIDTH / 2 - 150, 200, width = 100, height = 50, colour = BLUE), \
+        Button("BFS", WIDTH / 2, 200, width = 100, height = 50, colour = BLUE), \
+        Button("A*", WIDTH / 2 + 150, 200, width = 100, height = 50, colour = BLUE), \
+        Button("Random", WIDTH / 2 - 100, 375, width = 150, height = 50, colour = BLUE), \
+        Button("Empty", WIDTH / 2 + 100, 375, width = 150, height = 50, colour = BLUE), \
+        Button("VISUALISE", WIDTH / 2, 650, width = 200, height = 75, colour = BLUE)]
+    
+    instructions: List[Button] = [Button("Space to run", WIDTH / 2, 450), \
+        Button("Backspace to go back", WIDTH / 2, 500), \
+        Button("Enter to reset", WIDTH / 2, 550), \
+        Button("Pathfinding Algorithm", WIDTH / 2, 135), \
+        Button("Maze Generation", WIDTH / 2, 300)]
+    
     while run:
         # set type of algo and maze generation 
         if game_state == "setting":
@@ -423,7 +456,15 @@ def main():
                     run = False
 
                 if pygame.mouse.get_pressed()[0]: #LEFT 
-                    pass 
+                    # check if any of the buttons are pressed 
+                    for button in buttons:
+                        if button.is_clicked(pygame.mouse.get_pos()):
+                            if button.name in ("DFS", "BFS", "A*"):
+                                chosen_algo = button.name 
+                            if button.name in ("Random", "Empty"):
+                                maze.maze_gen(button.name)
+                            if button.name == "VISUALISE":
+                                game_state = "run" 
 
             setting_render(WIN, title, buttons, instructions)
         
@@ -488,9 +529,9 @@ def main():
                     if event.key == pygame.K_RETURN:
                         maze.reset()
 
-                    # goes back to game_state set 
+                    # goes back to game_state setting
                     if event.key == pygame.K_BACKSPACE:
-                        pass
+                        game_state = "setting"
 
             maze.render(WIN)
             
