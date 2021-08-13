@@ -32,6 +32,7 @@ GREY = (128, 128, 128) # for drawing the grid lines
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 BLUE = (126, 249, 255)
+RED = (250, 120, 114)
 
 class MazeLocation(NamedTuple):
     """Used to refer to locations in maze, for better organization"""
@@ -149,10 +150,22 @@ class Maze:
                 if random.uniform(0, 1.0) < sparseness:
                     self._grid[row][column].state = BLOCKED
 
+    def empty(self) -> None:
+        """Clear the entire maze of walls. Resets start and goal"""
+        for row in self._grid:
+            for d_node in row:
+                d_node.state = EMPTY 
+        
+        self.start = None
+        self.goal = None
+
     def maze_gen(self, gen_style: str) -> None:
         """Generate maze based on user chosen style"""
         if gen_style == "Random":
             self._randomly_filled(self._rows, self._columns, self.sparseness) 
+
+        if gen_style == "Empty":
+            self.empty()
 
     def on_click(self, mouse_pos: Tuple[int, int]) -> MazeLocation:
         """Select start and end points. Make walls delete walls"""
@@ -352,15 +365,15 @@ class Maze:
         self._grid[self.goal.row][self.goal.column].state = GOAL
 
     def reset(self) -> None:
-        """
-        Clears path, frontier, explored renders. Walls, start, goal remains. Recolour start  
-        """
+        """Clears path, frontier, explored renders. Walls, start, goal remains. Recolour start"""
         for row in self._grid:
             for d_node in row:
                 if d_node.state in (PATH, FRONTIER, EXPLORED):
                     d_node.state = EMPTY
-
-        self._grid[self.start.row][self .start.column].state = START
+        
+        # if start is deleted and set to None, this function still works 
+        if self.start:
+            self._grid[self.start.row][self .start.column].state = START
 
     def render(self, win) -> None:
         """Render all lines and nodes"""
@@ -386,7 +399,7 @@ class Button:
         self._width: int = width 
         self._height: int = height 
         self._rect: pygame.Rect = pygame.Rect(self._x - self._width / 2, self._y - self._height / 2, self._width, self._height)
-        self._button_colour: Tuple[int, int, int] = colour
+        self.button_colour: Tuple[int, int, int] = colour
 
         self._text_colour: Tuple[int, int, int] = BLACK
         # create a surface to render text
@@ -405,10 +418,10 @@ class Button:
 
     def render(self, win) -> None:
         """Renders rectangular button with text in the middle"""
-        pygame.draw.rect(win, self._button_colour, self._rect) 
+        pygame.draw.rect(win, self.button_colour, self._rect) 
         win.blit(self._text_render, self._text_rect)
 
-def setting_render(win, title: Button, buttons: List[Button], instructions: List[Button]):
+def setting_render(win, title: Button, buttons: Dict[str, Button], instructions: List[Button]) -> None:
     """Renders all buttons and texts in game_state setting"""
     # set background colour to white 
     win.fill((255,255,255)) 
@@ -417,7 +430,7 @@ def setting_render(win, title: Button, buttons: List[Button], instructions: List
     title.render(win)
     
     # renders all buttons
-    for button in buttons:
+    for button in buttons.values():
         button.render(win)
     
     # renders instructions  
@@ -431,15 +444,16 @@ def main():
     run: bool = True 
     game_state: str = "setting" # accepted values: setting, run 
     chosen_algo: str = "A*" # accepted values: DFS, BFS, A*
+    chosen_maze_gen: str = "Empty" 
 
     title = Button("Pathfinding", WIDTH / 2, 50, small_font=False)
     
-    buttons: List[Button] = [Button("DFS", WIDTH / 2 - 150, 200, width = 100, height = 50, colour = BLUE), \
-        Button("BFS", WIDTH / 2, 200, width = 100, height = 50, colour = BLUE), \
-        Button("A*", WIDTH / 2 + 150, 200, width = 100, height = 50, colour = BLUE), \
-        Button("Random", WIDTH / 2 - 100, 375, width = 150, height = 50, colour = BLUE), \
-        Button("Empty", WIDTH / 2 + 100, 375, width = 150, height = 50, colour = BLUE), \
-        Button("VISUALISE", WIDTH / 2, 650, width = 200, height = 75, colour = BLUE)]
+    buttons: Dict[str, Button] = {"DFS": Button("DFS", WIDTH / 2 - 150, 200, width = 100, height = 50, colour = BLUE), \
+        "BFS": Button("BFS", WIDTH / 2, 200, width = 100, height = 50, colour = BLUE), \
+        "A*": Button("A*", WIDTH / 2 + 150, 200, width = 100, height = 50, colour = BLUE), \
+        "Random": Button("Random", WIDTH / 2 - 100, 375, width = 150, height = 50, colour = BLUE), \
+        "Empty": Button("Empty", WIDTH / 2 + 100, 375, width = 150, height = 50, colour = BLUE), \
+        "VISUALISE": Button("VISUALISE", WIDTH / 2, 650, width = 200, height = 75, colour = BLUE)}
     
     instructions: List[Button] = [Button("Space to run", WIDTH / 2, 450), \
         Button("Backspace to go back", WIDTH / 2, 500), \
@@ -447,6 +461,11 @@ def main():
         Button("Pathfinding Algorithm", WIDTH / 2, 135), \
         Button("Maze Generation", WIDTH / 2, 300)]
     
+    # highlight the default 
+    for button in buttons:
+        if button == chosen_algo or button == chosen_maze_gen :
+            buttons[button].button_colour = RED 
+
     while run:
         # set type of algo and maze generation 
         if game_state == "setting":
@@ -457,14 +476,28 @@ def main():
 
                 if pygame.mouse.get_pressed()[0]: #LEFT 
                     # check if any of the buttons are pressed 
-                    for button in buttons:
+                    for button in buttons.values():
                         if button.is_clicked(pygame.mouse.get_pos()):
-                            if button.name in ("DFS", "BFS", "A*"):
+                            if button.name in ["DFS", "BFS", "A*"] and button.button_colour == BLUE:
+                                # deselect the previous selection
+                                buttons[chosen_algo].button_colour = BLUE 
+
+                                # select the current one and update chosen algo 
+                                button.button_colour = RED
                                 chosen_algo = button.name 
-                            if button.name in ("Random", "Empty"):
-                                maze.maze_gen(button.name)
+
+                            if button.name in ["Random", "Empty"] and button.button_colour == BLUE:
+                                # deselect the previous selection
+                                buttons[chosen_maze_gen].button_colour = BLUE
+
+                                # select the current one and update chosen algo
+                                button.button_colour = RED
+                                chosen_maze_gen = button.name
+
                             if button.name == "VISUALISE":
                                 game_state = "run" 
+                                maze.maze_gen(chosen_maze_gen)
+                                print(chosen_algo, chosen_maze_gen)
 
             setting_render(WIN, title, buttons, instructions)
         
@@ -529,9 +562,10 @@ def main():
                     if event.key == pygame.K_RETURN:
                         maze.reset()
 
-                    # goes back to game_state setting
+                    # goes back to game_state setting, should also reset the whole board 
                     if event.key == pygame.K_BACKSPACE:
                         game_state = "setting"
+                        maze.empty()
 
             maze.render(WIN)
             
