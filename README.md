@@ -14,3 +14,7 @@ This is a pathfinding visualiser that visualises Depth First Search (DFS), Bread
 ## Technologies
 
 Python 3.9.1 and pygame 2.0.1
+
+## How to use
+
+Just download game.py and make sure pygame is installed. Open the code in your IDE and run the program from there. 
