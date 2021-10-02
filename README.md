@@ -9,7 +9,7 @@ This is a pathfinding visualiser that visualises Depth First Search (DFS), Bread
 
 ## Visuals 
 
-![]()
+![](https://github.com/loheesong/pathfinding/blob/master/demo.gif)
 
 ## Technologies
 
